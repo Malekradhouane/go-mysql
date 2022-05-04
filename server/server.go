@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/ory/viper"
@@ -12,17 +11,16 @@ import (
 //Server is the http layer of the app
 type Server struct {
 	Cfg         *Config
-	UserActions *route.UserActions
+	TodoActions *route.TodoActions
 }
 
 //Config server config
 type Config struct {
 	Port           string
-	AuthMiddleware *jwt.GinJWTMiddleware
 }
 
 //NewConfig constructs a new config
-func NewConfig(authMiddleware *jwt.GinJWTMiddleware) *Config {
+func NewConfig() *Config {
 	viper.BindEnv("PORT", "PORT")
 	port := viper.GetString("PORT")
 	if port == "" {
@@ -30,15 +28,14 @@ func NewConfig(authMiddleware *jwt.GinJWTMiddleware) *Config {
 	}
 	return &Config{
 		Port:           port,
-		AuthMiddleware: authMiddleware,
 	}
 }
 
 func NewServer(cfg *Config,
-	uas *route.UserActions,
+	td *route.TodoActions,
 ) *Server {
 	return &Server{Cfg: cfg,
-		UserActions: uas,
+		TodoActions: td,
 	}
 }
 
@@ -50,25 +47,13 @@ func (s *Server) Run() error {
 	corsCfg.AllowAllOrigins = true
 	r.Use(cors.New(corsCfg))
 	r.GET("/status", route.GetStatus)
-	auth := r.Group("/api/auth")
-	{
-		auth.POST("", s.Cfg.AuthMiddleware.LoginHandler)
 
-	}
-	auth.Use(s.Cfg.AuthMiddleware.MiddlewareFunc())
 
-	users := r.Group("/api/users")
+	todolists := r.Group("/todolists")
 	{
-		users.POST("", s.UserActions.CreateUser)
-		users.GET("/:id", s.Cfg.AuthMiddleware.MiddlewareFunc(), func(ctx *gin.Context) {
-			if ctx.Param("id") == "list" {
-				s.UserActions.ListUsers(ctx)
-				return
-			}
-			s.UserActions.GetUser(ctx)
-		})
-		users.DELETE("/:id", s.Cfg.AuthMiddleware.MiddlewareFunc(), s.UserActions.DeleteUser)
-		users.PATCH("/:id", s.Cfg.AuthMiddleware.MiddlewareFunc(), s.UserActions.UpdateUser)
+		todolists.GET("", s.TodoActions.Get)
+		todolists.POST("",  s.TodoActions.Create)
+		todolists.DELETE("/:id", s.TodoActions.Delete)
 
 	}
 

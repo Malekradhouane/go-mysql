@@ -2,13 +2,13 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github/malekradhouane/test-cdi/auth"
 	"github/malekradhouane/test-cdi/route"
 	"github/malekradhouane/test-cdi/server"
 	"github/malekradhouane/test-cdi/service"
 	"github/malekradhouane/test-cdi/store"
-	"github/malekradhouane/test-cdi/store/mongo"
+	"github/malekradhouane/test-cdi/store/mysql"
 	"net/http"
 	"os"
 
@@ -19,7 +19,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:  "data-impact",
+	Use:  "ring-over",
 	RunE: start,
 }
 
@@ -27,14 +27,25 @@ var rootCmd = &cobra.Command{
 func start(cmd *cobra.Command, args []string) error {
 	viper.AutomaticEnv()
 	logger := getLogger()
-	logger.Debug("Running data-impact API...")
-	models := []interface{}{
-		&store.User{},
-	}
-	db := mongo.ConnectDB(models)
-	dbCfg := dbConfig()
+	logger.Debug("Running ring-over API...")
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	dbCfg := dbConfig()
+	if dbCfg.DB == "" || dbCfg.User == "" || dbCfg.Password == "" {
+		return onError(logger, cancel, "configuring the store", errors.New("DB name and credentials (user and password) are required"))
+	}
+
+	logger.Debug("Running ring-over API...")
+	models := []interface{}{
+		&store.Todo{},
+	}
+	db, err := mysql.NewClient(dbCfg, models)
+	if err != nil {
+		return onError(logger, cancel, "store client", err)
+	}
+	logger.Debug("connected to DB")
+
 
 
 	logger.Debug("connecting to store",
@@ -46,15 +57,10 @@ func start(cmd *cobra.Command, args []string) error {
 
 	logger.Debug("connected to DB")
 
-	userService := service.NewUserService(db)
-	userActions := route.NewUserActions(userService)
-
-	authCfg := auth.NewConfig()
-	authMiddleware, _ := auth.NewAuthMiddleware(authCfg, db)
-	serverCfg := server.NewConfig(authMiddleware)
-
-
-	server := server.NewServer(serverCfg, userActions)
+	todoService := service.NewTodoService(db)
+	todoActions := route.NewTodoActions(todoService)
+	serverCfg := server.NewConfig()
+	server := server.NewServer(serverCfg, todoActions)
 	errChan := make(chan error)
 	go func() {
 		logger.Debug("running the server")
@@ -66,11 +72,11 @@ func start(cmd *cobra.Command, args []string) error {
 	select {
 	case err := <-errChan:
 		server.Shutdown(ctx)
-		db.Client.Disconnect(ctx)
+		db.Shutdown()
 		return onError(logger, cancel, "runtime", err)
 	case <-ctx.Done():
 		server.Shutdown(ctx)
-		db.Client.Disconnect(ctx)
+		db.Shutdown()
 		cancel()
 		return nil
 	}
@@ -91,9 +97,8 @@ func Execute() {
 	viper.AutomaticEnv()
 	f := rootCmd.Flags()
 	f.String("db_host", "localhost", "DB host")
-	f.Int("db_port", 27017, "DB port")
+	f.Int("db_port", 3306, "DB port")
 	f.String("db_name", "", "DB name")
-	f.String("mongo_uri", "", "DB URI")
 	f.String("db_user", "", "DB user")
 	f.String("db_pwd", "", "DB password")
 	viper.BindPFlags(f)
@@ -104,25 +109,19 @@ func Execute() {
 	}
 }
 
-func dbConfig() *mongo.Config {
+func dbConfig() *mysql.Config {
 	viper.BindEnv("db_host", "db_host")
 	viper.BindEnv("db_port", "db_port")
 	viper.BindEnv("db_user", "db_user")
-	viper.BindEnv("mongo_uri", "mongo_uri")
 	viper.BindEnv("db_pwd", "db_pwd")
 	viper.BindEnv("db_name", "db_name")
-	viper.BindEnv("db_socket", "db_socket")
-	viper.BindEnv("env", "env")
 
-	return &mongo.Config{
+	return &mysql.Config{
 		Host:     viper.GetString("db_host"),
 		Port:     viper.GetInt("db_port"),
-		URI:      viper.GetString("mongo_uri"),
 		DB:       viper.GetString("db_name"),
 		User:     viper.GetString("db_user"),
 		Password: viper.GetString("db_pwd"),
-		Socket:   viper.GetString("db_socket"),
-		Env:      viper.GetString("env"),
 	}
 }
 

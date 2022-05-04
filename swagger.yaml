@@ -1,0 +1,64 @@
+basePath: /
+consumes:
+- application/json
+definitions:
+  Todo:
+    description: Todo defines the structure for an API product
+    properties:
+      Completed:
+        description: the completed for this todo
+        type: boolean
+      Description:
+        description: the description for this todo
+        maxLength: 10000
+        type: string
+      Id:
+        description: the id for the product
+        format: int64
+        minimum: 1
+        type: integer
+    type: object
+    x-go-package: github/malekradhouane/test-cdi/store
+info:
+  description: Documentation for todolist API
+  title: of todolist API
+  version: 1.0.0
+paths:
+  /todolist:
+    post:
+      description: Create a new todolist
+      operationId: create
+      responses:
+        "200":
+          $ref: '#/responses/productResponse'
+        "422":
+          $ref: '#/responses/errorValidation'
+        "501":
+          $ref: '#/responses/errorResponse'
+      tags:
+      - todolist
+  /todolists:
+    get:
+      description: Return a list of todos from the database
+      operationId: todoList
+      responses:
+        "200":
+          $ref: '#/responses/todoList'
+  /todolists/{id}:
+    delete:
+      description: delete a todolist
+      operationId: Delete
+      responses:
+        "201":
+          $ref: '#/responses/noContentResponse'
+        "404":
+          $ref: '#/responses/errorResponse'
+        "501":
+          $ref: '#/responses/errorResponse'
+      tags:
+      - todolist
+produces:
+- application/json
+schemes:
+- http
+swagger: "2.0"

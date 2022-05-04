@@ -2,14 +2,10 @@ package errs
 
 import "errors"
 
-//ErrEmailTaken is returned when trying to create a user the a taken email address
-var ErrEmailTaken = errors.New("Email address already taken")
-
 
 // ErrNoSuchEntity is thrown when no entity is found for the required key
 var ErrNoSuchEntity = errors.New("no such entity")
 
-var ErrFileAlreadyExist  = errors.New("File already exists!")
 // IsNoSuchEntityError return if the error is a wrapped (or not) not such entity error
 func IsNoSuchEntityError(e error) bool {
 	return errors.Is(e, ErrNoSuchEntity)
